@@ -15,4 +15,4 @@ Deploy:
 - Ethereum Sepolia: `npx hardhat run scripts/deploy.js --network sepolia`
 - Base Sepolia: `npx hardhat run scripts/deploy.js --network baseSepolia`
 
-To start frontend: npx http-server frontend
+To start frontend: From repo root run: python3 -m http.server 8080 --directory frontend
