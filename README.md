@@ -1,4 +1,4 @@
-# Boiler-Blockchain-Project
+# MBC Project - ExpenseShare
 
 Collaborative expense sharing on Base: create bills with targets, contributors send ETH, receipt tokens mint/burn on contribution/refund, payees withdraw when funded, owner can seed/distribute rewards.
 
