@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ExpenseShare dApp</title>
+  <style>
+    :root {
+      --bg: #0c0f14;
+      --panel: #161b22;
+      --text: #e6edf3;
+      --muted: #94a3b8;
+      --accent: #5ac8fa;
+      --danger: #f87171;
+      --success: #34d399;
+      --border: #1f2937;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Inter", system-ui, -apple-system, sans-serif;
+      background: radial-gradient(120% 120% at 20% 20%, #152032, #0c0f14);
+      color: var(--text);
+      line-height: 1.5;
+      padding: 24px;
+    }
+    h1, h2, h3 { margin: 0 0 12px; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 16px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+    }
+    label {
+      display: block;
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    input, textarea, select {
+      width: 100%;
+      padding: 10px 12px;
+      background: #0f1624;
+      color: var(--text);
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      font-size: 14px;
+      margin-bottom: 12px;
+    }
+    button {
+      background: linear-gradient(120deg, #5ac8fa, #60a5fa);
+      color: #0c0f14;
+      border: none;
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 0.1s ease, box-shadow 0.2s ease;
+    }
+    button:hover { transform: translateY(-1px); box-shadow: 0 10px 25px rgba(90,200,250,0.25); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
+    .muted { color: var(--muted); font-size: 13px; }
+    #log {
+      height: 180px;
+      overflow-y: auto;
+      background: #0a0f19;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 13px;
+      white-space: pre-wrap;
+    }
+    .row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .tag {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: #0f172a;
+      border: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .status-ok { color: var(--success); }
+    .status-bad { color: var(--danger); }
+  </style>
+</head>
+<body>
+  <header style="margin-bottom: 20px;">
+    <h1>ExpenseShare Dashboard</h1>
+    <p class="muted">Connect a wallet, paste your deployed contract addresses, and interact with ExpenseShare + ReceiptToken (ethers v6, no build step required).</p>
+  </header>
+
+  <section class="grid" style="margin-bottom: 16px;">
+    <div class="card">
+      <h2>Connection</h2>
+      <button id="connectBtn">Connect Wallet</button>
+      <button id="switchBtn" style="margin-top:8px;">Switch to Sepolia</button>
+      <div style="margin-top: 8px;">
+        <div class="muted">Account:</div>
+        <div id="accountTag" class="tag">Not connected</div>
+      </div>
+      <div style="margin-top: 8px;">
+        <div class="muted">Network:</div>
+        <div id="networkTag" class="tag">-</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Contract Addresses</h2>
+      <label for="expenseAddress">ExpenseShare address</label>
+      <input id="expenseAddress" placeholder="0x... (required)" />
+      <label for="tokenAddress">ReceiptToken address (optional for view-only)</label>
+      <input id="tokenAddress" placeholder="0x..." />
+      <button id="setTokenBtn">Set Receipt Token (owner only)</button>
+      <p class="muted" style="margin-top: 6px;">Paste addresses from your deployment (e.g., Hardhat localhost or testnet). Set Receipt Token wires ExpenseShare to your token.</p>
+    </div>
+  </section>
+
+  <section class="grid">
+    <div class="card">
+      <h3>Create Bill</h3>
+      <label for="payeeInput">Payee</label>
+      <input id="payeeInput" placeholder="0x payee address" />
+      <label for="targetInput">Target (ETH)</label>
+      <input id="targetInput" type="number" step="0.0001" placeholder="1.0" />
+      <label for="deadlineInput">Deadline (unix seconds, optional; 0 = none)</label>
+      <input id="deadlineInput" type="number" placeholder="0" />
+      <button id="createBillBtn">Create Bill</button>
+      <div class="muted" id="nextBill">Next bill id: -</div>
+    </div>
+
+    <div class="card">
+      <h3>Contribute</h3>
+      <label for="billIdContrib">Bill ID</label>
+      <input id="billIdContrib" type="number" min="0" placeholder="0" />
+      <label for="amountContrib">Amount (ETH)</label>
+      <input id="amountContrib" type="number" step="0.0001" placeholder="0.1" />
+      <button id="contributeBtn">Contribute</button>
+    </div>
+
+    <div class="card">
+      <h3>Withdraw / Refund</h3>
+      <label for="billIdAction">Bill ID</label>
+      <input id="billIdAction" type="number" min="0" placeholder="0" />
+      <div class="row">
+        <button id="withdrawBtn">Withdraw (payee)</button>
+        <button id="refundBtn">Refund (contributor)</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Inspect Bill</h3>
+      <label for="billIdInspect">Bill ID</label>
+      <input id="billIdInspect" type="number" min="0" placeholder="0" />
+      <button id="inspectBtn">Load</button>
+      <pre id="billDetails" class="muted" style="white-space: pre-wrap; margin-top: 10px;">-</pre>
+    </div>
+
+    <div class="card">
+      <h3>Receipt Token</h3>
+      <div class="row" style="margin-bottom: 12px;">
+        <button id="pullTokenInfoBtn">Refresh info</button>
+        <button id="balanceBtn">My balance</button>
+      </div>
+      <pre id="tokenDetails" class="muted" style="white-space: pre-wrap;">-</pre>
+    </div>
+  </section>
+
+  <section class="card" style="margin-top: 16px;">
+    <h3>Activity</h3>
+    <div id="log"></div>
+  </section>
+
+  <!-- ethers v6 UMD from local node_modules -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.1/ethers.umd.min.js"></script>
+  <script>
+    const TARGET_CHAIN_ID = 11155111n; // Sepolia
+    const TARGET_CHAIN_HEX = "0xaa36a7";
+
+    const expenseAbi = [{"inputs":[{"internalType":"address","name":"_receiptToken","type":"address"}],"stateMutability":"nonpayable","type":"constructor"},{"inputs":[],"name":"AlreadyWithdrawn","type":"error"},{"inputs":[],"name":"BillNotFound","type":"error"},{"inputs":[],"name":"DeadlineNotPassed","type":"error"},{"inputs":[],"name":"NoContribution","type":"error"},{"inputs":[],"name":"NotFunded","type":"error"},{"inputs":[],"name":"NotPayee","type":"error"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"uint256","name":"billId","type":"uint256"},{"indexed":true,"internalType":"address","name":"creator","type":"address"},{"indexed":true,"internalType":"address","name":"payee","type":"address"},{"indexed":false,"internalType":"uint256","name":"target","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"deadline","type":"uint256"}],"name":"BillCreated","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"uint256","name":"billId","type":"uint256"},{"indexed":true,"internalType":"address","name":"from","type":"address"},{"indexed":false,"internalType":"uint256","name":"amount","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"totalPaid","type":"uint256"}],"name":"Contributed","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"previousOwner","type":"address"},{"indexed":true,"internalType":"address","name":"newOwner","type":"address"}],"name":"OwnershipTransferred","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"uint256","name":"billId","type":"uint256"},{"indexed":true,"internalType":"address","name":"contributor","type":"address"},{"indexed":false,"internalType":"uint256","name":"amount","type":"uint256"}],"name":"Refunded","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"uint256","name":"billId","type":"uint256"},{"indexed":true,"internalType":"address","name":"contributor","type":"address"},{"indexed":false,"internalType":"uint256","name":"reward","type":"uint256"}],"name":"RewardPaid","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"uint256","name":"billId","type":"uint256"},{"indexed":true,"internalType":"address","name":"payee","type":"address"},{"indexed":false,"internalType":"uint256","name":"amount","type":"uint256"}],"name":"Withdrawn","type":"event"},{"stateMutability":"payable","type":"fallback"},{"inputs":[{"internalType":"uint256","name":"","type":"uint256"}],"name":"bills","outputs":[{"internalType":"address","name":"creator","type":"address"},{"internalType":"address payable","name":"payee","type":"address"},{"internalType":"uint256","name":"target","type":"uint256"},{"internalType":"uint256","name":"totalPaid","type":"uint256"},{"internalType":"uint256","name":"deadline","type":"uint256"},{"internalType":"bool","name":"withdrawn","type":"bool"},{"internalType":"uint256","name":"rewardPool","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"billId","type":"uint256"}],"name":"contribute","outputs":[],"stateMutability":"payable","type":"function"},{"inputs":[{"internalType":"uint256","name":"","type":"uint256"},{"internalType":"address","name":"","type":"address"}],"name":"contributions","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"billId","type":"uint256"},{"internalType":"address","name":"contributor","type":"address"}],"name":"contributorAmount","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address payable","name":"payee","type":"address"},{"internalType":"uint256","name":"targetWei","type":"uint256"},{"internalType":"uint256","name":"deadlineUnix","type":"uint256"}],"name":"createBill","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"uint256","name":"billId","type":"uint256"}],"name":"distributeRewards","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"uint256","name":"billId","type":"uint256"}],"name":"isFunded","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"nextBillId","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"owner","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"receiptToken","outputs":[{"internalType":"contract ReceiptToken","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"billId","type":"uint256"}],"name":"refund","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"renounceOwnership","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address payable","name":"to","type":"address"},{"internalType":"uint256","name":"amount","type":"uint256"}],"name":"rescueETH","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"uint256","name":"billId","type":"uint256"}],"name":"seedRewardPool","outputs":[],"stateMutability":"payable","type":"function"},{"inputs":[{"internalType":"address","name":"token","type":"address"}],"name":"setReceiptToken","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"uint256","name":"_tokenUnit","type":"uint256"}],"name":"setTokenUnit","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"tokenUnit","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"newOwner","type":"address"}],"name":"transferOwnership","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"uint256","name":"billId","type":"uint256"}],"name":"withdraw","outputs":[],"stateMutability":"nonpayable","type":"function"},{"stateMutability":"payable","type":"receive"}];
+    const receiptAbi = [{"inputs":[{"internalType":"string","name":"name_","type":"string"},{"internalType":"string","name":"symbol_","type":"string"}],"stateMutability":"nonpayable","type":"constructor"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"owner","type":"address"},{"indexed":true,"internalType":"address","name":"spender","type":"address"},{"indexed":false,"internalType":"uint256","name":"value","type":"uint256"}],"name":"Approval","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"previousOwner","type":"address"},{"indexed":true,"internalType":"address","name":"newOwner","type":"address"}],"name":"OwnershipTransferred","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"from","type":"address"},{"indexed":true,"internalType":"address","name":"to","type":"address"},{"indexed":false,"internalType":"uint256","name":"value","type":"uint256"}],"name":"Transfer","type":"event"},{"inputs":[{"internalType":"address","name":"owner","type":"address"},{"internalType":"address","name":"spender","type":"address"}],"name":"allowance","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"spender","type":"address"},{"internalType":"uint256","name":"amount","type":"uint256"}],"name":"approve","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"account","type":"address"}],"name":"balanceOf","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"from","type":"address"},{"internalType":"uint256","name":"amount","type":"uint256"}],"name":"burn","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"decimals","outputs":[{"internalType":"uint8","name":"","type":"uint8"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"spender","type":"address"},{"internalType":"uint256","name":"subtractedValue","type":"uint256"}],"name":"decreaseAllowance","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"spender","type":"address"},{"internalType":"uint256","name":"addedValue","type":"uint256"}],"name":"increaseAllowance","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"to","type":"address"},{"internalType":"uint256","name":"amount","type":"uint256"}],"name":"mint","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"minter","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"name","outputs":[{"internalType":"string","name":"","type":"string"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"owner","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"renounceOwnership","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"_minter","type":"address"}],"name":"setMinter","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"symbol","outputs":[{"internalType":"string","name":"","type":"string"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"totalSupply","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"to","type":"address"},{"internalType":"uint256","name":"amount","type":"uint256"}],"name":"transfer","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"from","type":"address"},{"internalType":"address","name":"to","type":"address"},{"internalType":"uint256","name":"amount","type":"uint256"}],"name":"transferFrom","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"newOwner","type":"address"}],"name":"transferOwnership","outputs":[],"stateMutability":"nonpayable","type":"function"}];
+
+    const logEl = document.getElementById("log");
+    const accountTag = document.getElementById("accountTag");
+    const networkTag = document.getElementById("networkTag");
+    const nextBillEl = document.getElementById("nextBill");
+    const tokenDetailsEl = document.getElementById("tokenDetails");
+    const billDetailsEl = document.getElementById("billDetails");
+
+    let provider, signer, expense, receipt;
+
+    async function ensureSepolia() {
+      if (!provider) return false;
+      const net = await provider.getNetwork();
+      if (net.chainId === TARGET_CHAIN_ID) return true;
+      try {
+        await provider.send("wallet_switchEthereumChain", [{ chainId: TARGET_CHAIN_HEX }]);
+        log("Switched to Sepolia.");
+        return true;
+      } catch (err) {
+        log(`Switch rejected/failed: ${err}`);
+        return false;
+      }
+    }
+
+    function log(message) {
+      const ts = new Date().toLocaleTimeString();
+      logEl.textContent = `[${ts}] ${message}\n` + logEl.textContent;
+    }
+
+    function getAddressInput(id) {
+      const val = document.getElementById(id).value.trim();
+      return ethers.isAddress(val) ? val : null;
+    }
+
+    function connectContracts() {
+      const expAddr = getAddressInput("expenseAddress");
+      if (!expAddr) {
+        expense = null;
+        log("Set a valid ExpenseShare address first.");
+        return false;
+      }
+      expense = new ethers.Contract(expAddr, expenseAbi, signer);
+
+      const tokenAddr = getAddressInput("tokenAddress");
+      receipt = tokenAddr ? new ethers.Contract(tokenAddr, receiptAbi, signer) : null;
+      return true;
+    }
+
+    async function connectWallet() {
+      if (!window.ethereum) {
+        alert("No injected wallet found (e.g., MetaMask).");
+        return;
+      }
+      provider = new ethers.BrowserProvider(window.ethereum);
+      await provider.send("eth_requestAccounts", []);
+      signer = await provider.getSigner();
+      const addr = await signer.getAddress();
+      await ensureSepolia();
+      const net = await provider.getNetwork();
+      accountTag.textContent = addr;
+      networkTag.textContent = `${net.name} (${net.chainId})`;
+      accountTag.classList.add("status-ok");
+      networkTag.classList.toggle("status-bad", net.chainId !== TARGET_CHAIN_ID);
+      networkTag.classList.toggle("status-ok", net.chainId === TARGET_CHAIN_ID);
+      log(`Connected: ${addr} on ${net.name}`);
+      connectContracts();
+      refreshNextBill();
+    }
+
+    async function refreshNextBill() {
+      if (!expense) return;
+      try {
+        const id = await expense.nextBillId();
+        nextBillEl.textContent = `Next bill id: ${id}`;
+      } catch (err) {
+        log(`nextBillId failed: ${err}`);
+      }
+    }
+
+    async function setReceiptToken() {
+      if (!connectContracts()) return;
+      const tokenAddr = getAddressInput("tokenAddress");
+      if (!tokenAddr) return alert("Enter a valid token address.");
+      try {
+        const tx = await expense.setReceiptToken(tokenAddr);
+        log(`setReceiptToken submitted: ${tx.hash}`);
+        await tx.wait();
+        log("setReceiptToken confirmed.");
+      } catch (err) {
+        log(`setReceiptToken error: ${err}`);
+      }
+    }
+
+    async function createBill() {
+      if (!connectContracts()) return;
+      const payee = document.getElementById("payeeInput").value.trim();
+      if (!ethers.isAddress(payee)) return alert("Invalid payee.");
+      const targetEth = document.getElementById("targetInput").value || "0";
+      const deadline = document.getElementById("deadlineInput").value || "0";
+      try {
+        const targetWei = ethers.parseEther(targetEth);
+        const tx = await expense.createBill(payee, targetWei, BigInt(deadline));
+        log(`createBill submitted: ${tx.hash}`);
+        const receiptTx = await tx.wait();
+        log(`createBill confirmed (billId ${receiptTx.logs?.[0]?.topics?.[1] || "see chain"}).`);
+        refreshNextBill();
+      } catch (err) {
+        log(`createBill error: ${err}`);
+      }
+    }
+
+    async function contribute() {
+      if (!connectContracts()) return;
+      const billId = document.getElementById("billIdContrib").value || "0";
+      const amountEth = document.getElementById("amountContrib").value || "0";
+      try {
+        const tx = await expense.contribute(BigInt(billId), { value: ethers.parseEther(amountEth) });
+        log(`contribute submitted: ${tx.hash}`);
+        await tx.wait();
+        log("contribute confirmed.");
+      } catch (err) {
+        log(`contribute error: ${err}`);
+      }
+    }
+
+    async function withdraw() {
+      if (!connectContracts()) return;
+      const billId = document.getElementById("billIdAction").value || "0";
+      try {
+        const tx = await expense.withdraw(BigInt(billId));
+        log(`withdraw submitted: ${tx.hash}`);
+        await tx.wait();
+        log("withdraw confirmed.");
+      } catch (err) {
+        log(`withdraw error: ${err}`);
+      }
+    }
+
+    async function refund() {
+      if (!connectContracts()) return;
+      const billId = document.getElementById("billIdAction").value || "0";
+      try {
+        const tx = await expense.refund(BigInt(billId));
+        log(`refund submitted: ${tx.hash}`);
+        await tx.wait();
+        log("refund confirmed.");
+      } catch (err) {
+        log(`refund error: ${err}`);
+      }
+    }
+
+    async function inspectBill() {
+      if (!connectContracts()) return;
+      const billId = document.getElementById("billIdInspect").value || "0";
+      try {
+        const b = await expense.bills(BigInt(billId));
+        const funded = await expense.isFunded(BigInt(billId));
+        billDetailsEl.textContent =
+`creator:   ${b.creator}
+payee:     ${b.payee}
+target:    ${ethers.formatEther(b.target)} ETH
+totalPaid: ${ethers.formatEther(b.totalPaid)} ETH
+deadline:  ${b.deadline}
+withdrawn: ${b.withdrawn}
+rewardPool:${ethers.formatEther(b.rewardPool)} ETH
+funded:    ${funded}`;
+      } catch (err) {
+        billDetailsEl.textContent = `Error: ${err}`;
+        log(`inspect error: ${err}`);
+      }
+    }
+
+    async function refreshTokenInfo() {
+      if (!receipt) {
+        const tokenAddr = getAddressInput("tokenAddress");
+        if (!tokenAddr) {
+          tokenDetailsEl.textContent = "No token address set.";
+          return;
+        }
+        receipt = new ethers.Contract(tokenAddr, receiptAbi, signer);
+      }
+      try {
+        const [name, symbol, supply, minter] = await Promise.all([
+          receipt.name(),
+          receipt.symbol(),
+          receipt.totalSupply(),
+          receipt.minter(),
+        ]);
+        tokenDetailsEl.textContent =
+`name:    ${name}
+symbol:  ${symbol}
+supply:  ${ethers.formatUnits(supply, await receipt.decimals())}
+minter:  ${minter}`;
+      } catch (err) {
+        tokenDetailsEl.textContent = `Token query failed: ${err}`;
+        log(`token info error: ${err}`);
+      }
+    }
+
+    async function myBalance() {
+      if (!receipt) return alert("Set token address first.");
+      try {
+        const addr = await signer.getAddress();
+        const bal = await receipt.balanceOf(addr);
+        const decimals = await receipt.decimals();
+        tokenDetailsEl.textContent = `Balance: ${ethers.formatUnits(bal, decimals)} ${await receipt.symbol()}`;
+      } catch (err) {
+        log(`balance error: ${err}`);
+      }
+    }
+
+    document.getElementById("connectBtn").onclick = connectWallet;
+    document.getElementById("switchBtn").onclick = ensureSepolia;
+    document.getElementById("setTokenBtn").onclick = setReceiptToken;
+    document.getElementById("createBillBtn").onclick = createBill;
+    document.getElementById("contributeBtn").onclick = contribute;
+    document.getElementById("withdrawBtn").onclick = withdraw;
+    document.getElementById("refundBtn").onclick = refund;
+    document.getElementById("inspectBtn").onclick = inspectBill;
+    document.getElementById("pullTokenInfoBtn").onclick = refreshTokenInfo;
+    document.getElementById("balanceBtn").onclick = myBalance;
+  </script>
+</body>
+</html>
