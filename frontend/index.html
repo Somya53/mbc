@@ -350,7 +350,28 @@
       const billId = document.getElementById("billIdContrib").value || "0";
       const amountEth = document.getElementById("amountContrib").value || "0";
       try {
-        const tx = await expense.contribute(BigInt(billId), { value: ethers.parseEther(amountEth) });
+        const billIdBig = BigInt(billId);
+        const amountWei = ethers.parseEther(amountEth);
+        if (amountWei <= 0n) {
+          return alert("Amount must be > 0");
+        }
+        const code = await provider.getCode(expense.target);
+        if (!code || code === "0x") {
+          log("No contract code at ExpenseShare address (check address and network).");
+          return;
+        }
+        const bill = await expense.bills(billIdBig);
+        if (bill.target === 0n) {
+          log(`Bill ${billId} not found (create first).`);
+          return;
+        }
+        const bal = await signer.provider.getBalance(await signer.getAddress());
+        if (bal < amountWei) {
+          log(`Insufficient balance. Need ${ethers.formatEther(amountWei)} ETH, have ${ethers.formatEther(bal)} ETH.`);
+          return;
+        }
+        log(`Sending ${amountEth} ETH to contribute on bill ${billId}...`);
+        const tx = await expense.contribute(billIdBig, { value: amountWei });
         log(`contribute submitted: ${tx.hash}`);
         await tx.wait();
         log("contribute confirmed.");
@@ -363,7 +384,27 @@
       if (!connectContracts()) return;
       const billId = document.getElementById("billIdAction").value || "0";
       try {
-        const tx = await expense.withdraw(BigInt(billId));
+        const billIdBig = BigInt(billId);
+        const bill = await expense.bills(billIdBig);
+        if (bill.target === 0n) {
+          log(`Bill ${billId} not found.`);
+          return;
+        }
+        if (bill.withdrawn) {
+          log(`Bill ${billId} already withdrawn.`);
+          return;
+        }
+        const me = await signer.getAddress();
+        if (bill.payee.toLowerCase() !== me.toLowerCase()) {
+          log(`Not payee. Payee is ${bill.payee}`);
+          return;
+        }
+        const funded = await expense.isFunded(billIdBig);
+        if (!funded) {
+          log(`Bill ${billId} not yet funded (target ${ethers.formatEther(bill.target)} ETH, totalPaid ${ethers.formatEther(bill.totalPaid)} ETH).`);
+          return;
+        }
+        const tx = await expense.withdraw(billIdBig);
         log(`withdraw submitted: ${tx.hash}`);
         await tx.wait();
         log("withdraw confirmed.");
@@ -376,7 +417,32 @@
       if (!connectContracts()) return;
       const billId = document.getElementById("billIdAction").value || "0";
       try {
-        const tx = await expense.refund(BigInt(billId));
+        const billIdBig = BigInt(billId);
+        const bill = await expense.bills(billIdBig);
+        if (bill.target === 0n) {
+          log(`Bill ${billId} not found.`);
+          return;
+        }
+        if (bill.withdrawn) {
+          log(`Bill ${billId} already withdrawn; cannot refund.`);
+          return;
+        }
+        const now = BigInt(Math.floor(Date.now() / 1000));
+        if (bill.deadline === 0n || now <= bill.deadline) {
+          log(`Deadline not passed. deadline=${bill.deadline} now=${now}`);
+          return;
+        }
+        if (bill.totalPaid >= bill.target) {
+          log(`Bill ${billId} is funded; refund not allowed.`);
+          return;
+        }
+        const me = await signer.getAddress();
+        const contributed = await expense.contributions(billIdBig, me);
+        if (contributed === 0n) {
+          log(`No contribution by ${me} for bill ${billId}.`);
+          return;
+        }
+        const tx = await expense.refund(billIdBig, me);
         log(`refund submitted: ${tx.hash}`);
         await tx.wait();
         log("refund confirmed.");
