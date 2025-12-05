@@ -161,10 +161,14 @@ contract ExpenseShare is ReentrancyGuard, Ownable {
     // Withdraw / Refund
     // ----------------------------
     function withdraw(uint256 billId) external nonReentrant {
+        _withdraw(billId, false);
+    }
+
+    function _withdraw(uint256 billId, bool allowAgent) internal {
         Bill storage b = bills[billId];
         if (b.target == 0) revert BillNotFound();
         if (b.withdrawn) revert AlreadyWithdrawn();
-        if (msg.sender != b.payee) revert NotPayee();
+        if (!allowAgent && msg.sender != b.payee) revert NotPayee();
         if (b.totalPaid < b.target) revert NotFunded();
 
         b.withdrawn = true;
@@ -178,6 +182,10 @@ contract ExpenseShare is ReentrancyGuard, Ownable {
     }
 
     function refund(uint256 billId, address contributor) external nonReentrant {
+        _refund(billId, contributor);
+    }
+
+    function _refund(uint256 billId, address contributor) internal {
         Bill storage b = bills[billId];
         if (b.target == 0) revert BillNotFound();
         if (b.withdrawn) revert AlreadyWithdrawn();
@@ -214,6 +222,10 @@ contract ExpenseShare is ReentrancyGuard, Ownable {
     }
 
     function distributeRewards(uint256 billId) external nonReentrant {
+        _distributeRewards(billId);
+    }
+
+    function _distributeRewards(uint256 billId) internal {
         Bill storage b = bills[billId];
         if (b.target == 0) revert BillNotFound();
         if (b.totalPaid < b.target) revert NotFunded();
@@ -231,15 +243,15 @@ contract ExpenseShare is ReentrancyGuard, Ownable {
     // Agent Functions
     // ----------------------------
     function agentWithdraw(uint256 billId) external onlyAgent nonReentrant {
-        withdraw(billId);
+        _withdraw(billId, true);
     }
 
     function agentRefund(uint256 billId, address contributor) external onlyAgent nonReentrant {
-        refund(billId, contributor);
+        _refund(billId, contributor);
     }
 
     function agentDistributeRewards(uint256 billId) external onlyAgent nonReentrant {
-        distributeRewards(billId);
+        _distributeRewards(billId);
     }
 
     // ----------------------------

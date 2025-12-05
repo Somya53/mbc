@@ -4,6 +4,15 @@ We chose the Open Track and implemented a custom smart contract that enables col
 
 # To Run
 
-To run: npx hardhat run scripts/deploy.js --network sepolia
+Set environment (add to `.env`):
+```
+SEPOLIA_RPC_URL=<ethereum-sepolia-rpc>
+BASE_SEPOLIA_RPC_URL=<base-sepolia-rpc>
+PRIVATE_KEY=0x<private-key>
+```
+
+Deploy:
+- Ethereum Sepolia: `npx hardhat run scripts/deploy.js --network sepolia`
+- Base Sepolia: `npx hardhat run scripts/deploy.js --network baseSepolia`
 
 To start frontend: npx http-server frontend
