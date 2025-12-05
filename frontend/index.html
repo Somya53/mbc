@@ -204,6 +204,7 @@
     const billDetailsEl = document.getElementById("billDetails");
 
     let provider, signer, expense, receipt;
+    let eventsSubscribed = false;
 
     async function ensureSepolia() {
       if (!provider) return false;
@@ -260,7 +261,22 @@
 
       const tokenAddr = getAddressInput("tokenAddress");
       receipt = tokenAddr ? new ethers.Contract(tokenAddr, receiptAbi, signer) : null;
+      subscribeEvents();
       return true;
+    }
+
+    function subscribeEvents() {
+      if (!expense || eventsSubscribed) return;
+      eventsSubscribed = true;
+      expense.on("Withdrawn", (billId, payee, amount) => {
+        log(`(event) Withdrawn bill ${billId} payee ${payee} amount ${ethers.formatEther(amount)} ETH`);
+      });
+      expense.on("Refunded", (billId, contributor, amount) => {
+        log(`(event) Refunded bill ${billId} to ${contributor} amount ${ethers.formatEther(amount)} ETH`);
+      });
+      expense.on("RewardPaid", (billId, recipient, reward) => {
+        log(`(event) RewardPaid bill ${billId} to ${recipient} amount ${ethers.formatEther(reward)} ETH`);
+      });
     }
 
     async function connectWallet() {
