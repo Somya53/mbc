@@ -6,7 +6,6 @@ Collaborative expense sharing on Ethereum/Base: create bills with targets, contr
 - [Setup](#setup)
 - [Local Run](#local-run)
 - [Deploy](#deploy)
-- [Deterministic Deploy](#deterministic-deploy-same-address-every-time)
 - [Agent Automation](#agent-automation-base-sepolia)
 - [Architecture Overview](#architecture-overview)
 
@@ -30,14 +29,6 @@ Install deps: `npm install`
 ## Deploy
 - Ethereum Sepolia: `npx hardhat run scripts/deploy.js --network sepolia`
 - Base Sepolia: `npx hardhat run scripts/deploy.js --network baseSepolia`
-
-## Deterministic deploy (same address every time)
-- Uses the EIP-2470 CREATE2 factory (`0x0000000000FFe8B47B3e2130213B802212439497`).
-- Script: `npx hardhat run scripts/deploy_create2.js --network baseSepolia`
-- Fixed salts:
-  - ReceiptToken salt: `ethers.id("expense-receipt-v1")`
-  - ExpenseShare salt: `ethers.id("expense-share-v1")`
-- Derived addresses stay stable as long as bytecode/constructor args stay the same; script skips redeploy if already present and rewires minter.
 
 ## Agent automation (Base Sepolia)
 `scripts/agent.js` auto-distributes rewards, withdraws funded bills, and refunds expired unfunded bills via the agent role.
